@@ -4,7 +4,8 @@ import "reflect"
 
 func New(i interface{}) (interface{}, error) {
 	ref := reflect.New(reflect.TypeOf(i))
-	if err := initialize(ref, maybeInit); err != nil {
+	defer callInit(ref)
+	if err := initStruct(ref.Elem(), maybeInit, make(map[reflect.Type]bool)); err != nil {
 		return nil, err
 	}
 
@@ -13,7 +14,8 @@ func New(i interface{}) (interface{}, error) {
 
 func MustNew(i interface{}) interface{} {
 	ref := reflect.New(reflect.TypeOf(i))
-	if err := initialize(ref, maybeInit); err != nil {
+	defer callInit(ref)
+	if err := initStruct(ref.Elem(), maybeInit, make(map[reflect.Type]bool)); err != nil {
 		panic(err)
 	}
 
@@ -22,6 +24,7 @@ func MustNew(i interface{}) interface{} {
 
 func JustNew(i interface{}) (interface{}, error) {
 	ref := reflect.New(reflect.TypeOf(i))
-	err := initialize(ref, justInit)
+	defer callInit(ref)
+	err := initStruct(ref.Elem(), justInit, make(map[reflect.Type]bool))
 	return ref.Interface(), err
 }
