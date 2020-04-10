@@ -2,21 +2,19 @@ package main
 
 import (
 	"fmt"
-	def "github.com/rebirthlee/golang-default"
+	"github.com/rebirthlee/golang-default"
 )
 
 type Person struct {
 	Age int `def:"20"`
 	Name string `def:"hellp"`
-	Say func() string `def:"person_default_say"`
+	Do func() string `def:"person_default_do"`
 }
 
 func init() {
-	if err := def.SetFunc("person_default_say", func(self interface{}) interface{} {
+	if err := def.SetFunc("person_default_do", func(self interface{}) interface{} {
 		p := self.(*Person)
-		return func() string {
-			return fmt.Sprintf("My name is %s, %d years old", p.Name, p.Age)
-		}
+		return p.IntroducingMySelf
 	}); err != nil {
 		panic(err)
 	}
@@ -25,5 +23,13 @@ func init() {
 func main() {
 	p := def.MustNew(Person{}).(*Person)
 	fmt.Println(p)
-	fmt.Println(p.Say())
+	fmt.Println(p.Do())
+	p.Name = "rebirth lee"
+	p.Age = 25
+	fmt.Println(p.Do())
+}
+
+
+func (p *Person) IntroducingMySelf() string {
+	return fmt.Sprintf("My name is %s, %d years old", p.Name, p.Age)
 }

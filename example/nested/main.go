@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	def "github.com/rebirthlee/golang-default"
+	"github.com/rebirthlee/golang-default"
 )
 
 type (

@@ -11,6 +11,9 @@ import (
 
 const (
 	tagNameDefault = "def"
+
+	valueDive = "dive"
+	valueDiveLen = len(valueDive)
 )
 
 type structInitSelector func(v reflect.Value, visitedStruct map[reflect.Type]bool) error
@@ -65,8 +68,8 @@ func initStruct(v reflect.Value, selector structInitSelector, visitedStruct map[
 func justInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
-		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" {
-			if err := initField(v, v.Field(i), val, ok, justInit, visitedStruct); err != nil {
+		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" && ok {
+			if err := initField(v, v.Field(i), val, justInit, visitedStruct); err != nil {
 				// TODO 묶음 후 리턴
 			}
 		}
@@ -78,8 +81,8 @@ func justInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 func maybeInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
-		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" {
-			if err := initField(v, v.Field(i), val, ok, maybeInit, visitedStruct); err != nil {
+		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" && ok {
+			if err := initField(v, v.Field(i), val, maybeInit, visitedStruct); err != nil {
 				return err
 			}
 		}
@@ -89,100 +92,175 @@ func maybeInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 }
 
 
-func initField(structVal reflect.Value, v reflect.Value, val string, lookupOk bool, selector structInitSelector, visitedStruct map[reflect.Type]bool) error {
-	if !v.CanSet() || !lookupOk {
+func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, selector structInitSelector, visitedStruct map[reflect.Type]bool) error {
+	if !fieldVal.CanSet() {
 		return nil
 	}
 
-	switch k := v.Kind(); k {
+	switch k := fieldVal.Kind(); k {
 	case reflect.Invalid:
 		return nil
 	case reflect.Ptr:
-		elem := v.Elem()
-		//if val == "nil" || val == "null" {
-		//	v.Set(reflect.Zero(v.Type()))
-		//	return nil
-		//} else
+		elem := fieldVal.Elem()
 		if elem.Kind() == reflect.Invalid {
-			v.Set(reflect.New(v.Type().Elem()))
-			elem = v.Elem()
+			fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
+			elem = fieldVal.Elem()
 		}
-		defer callInit(v)
-		return initField(structVal, elem, val, lookupOk, selector, visitedStruct)
+		defer callInit(fieldVal)
+		return initField(structVal, elem, defVal, selector, visitedStruct)
 	case reflect.String:
-		v.SetString(val)
+		fieldVal.SetString(defVal)
 	case reflect.Bool:
-		if b, err := strconv.ParseBool(val); err != nil {
+		if b, err := strconv.ParseBool(defVal); err != nil {
 			return err
 		} else {
-			v.SetBool(b)
+			fieldVal.SetBool(b)
 		}
 	case reflect.Int, reflect.Int8, reflect.Int16,
 		reflect.Int32, reflect.Int64:
-		if i, err := strconv.ParseInt(getBaseValue(val)); err != nil {
+		if i, err := strconv.ParseInt(getBaseValue(defVal)); err != nil {
 			return err
 		} else {
-			v.SetInt(i)
+			fieldVal.SetInt(i)
 		}
 	case reflect.Uint, reflect.Uint8, reflect.Uint16,
 		reflect.Uint32, reflect.Uint64:
-		if i, err := strconv.ParseUint(getBaseValue(val)); err != nil {
+		if i, err := strconv.ParseUint(getBaseValue(defVal)); err != nil {
 			return err
 		} else {
-			v.SetUint(i)
+			fieldVal.SetUint(i)
 		}
 	case reflect.Float32, reflect.Float64:
-		if f, err := strconv.ParseFloat(val, 0); err != nil {
+		if f, err := strconv.ParseFloat(defVal, 0); err != nil {
 			return err
 		} else {
-			v.SetFloat(f)
+			fieldVal.SetFloat(f)
 		}
 	case reflect.Complex64, reflect.Complex128:
-		vals := strings.Split(val,",")
+		vals := strings.Split(defVal,",")
 		if len(vals) != 2 {
 			return errors.New("only two args")
 		}
 		if c, err := getStringToComplex(vals[0], vals[1]); err != nil {
 			return err
 		} else {
-			v.SetComplex(c)
+			fieldVal.SetComplex(c)
 		}
-		//TODO Fix: 구조체형태의 배열, 슬라이스 처리 필요
-	case reflect.Array, reflect.Slice,
-			reflect.Interface, reflect.Map, reflect.Struct:
-		if k == reflect.Struct && val == "dive" {
-			return initStruct(v, selector, visitedStruct)
-		}
-		ref := reflect.New(v.Type())
-		if err := json.Unmarshal([]byte(val), ref.Interface()); err != nil {
+
+	case reflect.Interface:
+		if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
 			return err
 		}
-		v.Set(ref.Elem())
+		//TODO dive 확장 아이디어 필요
+	case reflect.Map:
+		if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+			return err
+		}
+	case reflect.Struct:
+		if defVal == valueDive {
+			return initStruct(fieldVal, selector, visitedStruct)
+		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+			return err
+		}
+	case reflect.Slice:
+		if strings.HasPrefix(defVal, valueDive+"(") {
+			tmp := defVal[valueDiveLen+1:]
+			endBracket := strings.Index(tmp, ")")
+			if endBracket < 0 {
+				return errors.New("you must close bracket ')'")
+			}
+
+			ln, cp := 0, 0
+			sizes := strings.SplitN(tmp[:endBracket], ",", 2)
+			switch l := len(sizes); l {
+			default:
+				return errors.New("must be \"dive(len)\" or \"dive(len,cap)\"")
+			case 2:
+				if strings.HasPrefix("-", sizes[0]) || strings.HasPrefix("-", sizes[1]) {
+					return errors.New("negative size, param must be 0 or more")
+				}
+
+				var parseErr error
+				ln, parseErr = strconv.Atoi(sizes[0])
+				if parseErr != nil {
+					return parseErr
+				}
+
+				cp, parseErr = strconv.Atoi(sizes[1])
+				if parseErr != nil {
+					return parseErr
+				}
+
+				if ln > cp {
+					return errors.New("len larger than cap")
+				}
+			case 1:
+				if strings.HasPrefix("-", sizes[0]) {
+					return errors.New("negative size, param must be 0 or more")
+				}
+
+				var parseErr error
+				ln, parseErr = strconv.Atoi(sizes[0])
+				if parseErr != nil {
+					return parseErr
+				}
+
+				cp = int(float64(ln) * 1.5)
+			}
+
+			val := tmp[endBracket+1:]
+			if !strings.HasPrefix(val, ",") {
+				return errors.New("not enough arguments")
+			}
+			val = val[1:]
+
+			fieldVal.Set(reflect.MakeSlice(fieldVal.Type(), ln, cp))
+			for i := 0; i < ln; i++ {
+				if err := initField(structVal, fieldVal.Index(i), val, selector, visitedStruct); err != nil {
+					return err
+				}
+			}
+		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+			return err
+		}
+	case reflect.Array:
+		if strings.HasPrefix(defVal, valueDive) {
+			val := defVal[valueDiveLen:]
+			if !strings.HasPrefix(val, ",") {
+				return errors.New("not enough arguments")
+			}
+			val = val[1:]
+			for i, cnt := 0, fieldVal.Len(); i < cnt; i++ {
+				if err := initField(structVal, fieldVal.Index(i), val, selector, visitedStruct); err != nil {
+					return err
+				}
+			}
+		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+			return err
+		}
+		return nil
 	case reflect.Chan:
-		if strings.HasPrefix(val, "-") {
+		if strings.HasPrefix(defVal, "-") {
 			return errors.New("negative buffer size, param must be 0 or more")
-		} else if i, err := strconv.Atoi(val); err != nil {
+		} else if i, err := strconv.Atoi(defVal); err != nil {
 			return err
 		} else {
-			v.Set(reflect.MakeChan(v.Type(), i))
+			fieldVal.Set(reflect.MakeChan(fieldVal.Type(), i))
 		}
 	case reflect.Func:
-		srcFunc, ok := funcMap[val]
-		if !ok {
-			return fmt.Errorf("don't setup function for key : \"%s\"", val)
-		} else if !structVal.CanAddr() {
+		srcFunc, ok := funcMap[defVal]
+		if !structVal.CanAddr()  {
 			return errors.New("function initialize failed, because can't access address of struct")
+		} else if !ok {
+			return fmt.Errorf("not exists key : \"%s\"", defVal)
 		}
 
-		funcIface := reflect.ValueOf(srcFunc)
-		self := structVal.Addr().Convert(structVal.Addr().Type())
-		srcVal := funcIface.Call([]reflect.Value{self})[0].Elem()
-
+		srcVal := reflect.ValueOf(srcFunc(structVal.Addr().Interface()))
 		srcType := srcVal.Type()
 		if srcType.Kind() != reflect.Func {
 			return errors.New("return value must be function type")
 		}
-		vType := v.Type()
+		vType := fieldVal.Type()
 		if vType.NumIn() != srcType.NumIn() {
 			return errors.New("args count not equal")
 		} else if vType.NumOut() != srcType.NumOut() {
@@ -203,9 +281,19 @@ func initField(structVal reflect.Value, v reflect.Value, val string, lookupOk bo
 			}
 		}
 
-		v.Set(srcVal)
+		fieldVal.Set(srcVal)
 	}
 
+
+	return nil
+}
+
+func jsonUnmarshalValue(v reflect.Value, obj string) error {
+	if !v.CanAddr() {
+		return errors.New("json unmarshal fail, because can't access address of field")
+	} else if err := json.Unmarshal([]byte(obj), v.Addr().Interface()); err != nil {
+		return err
+	}
 
 	return nil
 }
