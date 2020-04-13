@@ -146,14 +146,78 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		} else {
 			fieldVal.SetComplex(c)
 		}
-
 	case reflect.Interface:
-		if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+		if defVal == "" {
+			fieldVal.Set(reflect.Zero(fieldVal.Type()))
+		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
 			return err
 		}
-		//TODO dive 확장 아이디어 필요
 	case reflect.Map:
-		if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+		if strings.HasPrefix(defVal, valueDive+"{") && strings.HasSuffix(defVal, "}") {
+			keyType := fieldVal.Type().Key()
+			valType := fieldVal.Type().Elem()
+
+			fieldVal.Set(reflect.MakeMap(fieldVal.Type()))
+
+			tmp := defVal[valueDiveLen+1:len(defVal)-1]
+			flag := byte(0x00)
+			keyIndex := len(tmp)
+			valIndex := 0
+			set := func(targetVal reflect.Value, start int, end int) error {
+				return initField(structVal, targetVal, tmp[start:end], selector, visitedStruct)
+			}
+
+			for i := len(tmp)-1; i >= 0; i-- {
+				c := tmp[i]
+				switch flag {
+				case 0x00: // none
+					if c == '"' {
+						//flag ^= 0x01
+						flag = 0x01
+					} else if c == '}' {
+						flag = 0x02
+					}
+				case 0x01: // isString
+					if c == '"' {
+						//flag ^= 0x01
+						flag = 0x00
+					}
+				case 0x02: // isObject
+					if c == '{' {
+						flag = 0x00
+					}
+				}
+
+				if flag > 0 {
+					continue
+				}
+
+				if c == ':' {
+					valIndex = i
+				} else if c == ',' || i == 0 {
+					var at int
+					if i > valIndex {
+						return errors.New("map default value malformed format")
+					} else if i == 0 {
+						at = i
+					} else {
+						at = i + 1
+					}
+
+
+					keyRef := reflect.New(keyType)
+					valRef := reflect.New(valType)
+					if keyErr, valErr := set(keyRef.Elem(), at, valIndex), set(valRef.Elem(), valIndex+1, keyIndex); keyErr != nil {
+						return keyErr
+					} else if valErr != nil {
+						return valErr
+					}
+					fieldVal.SetMapIndex(keyRef.Elem(), valRef.Elem())
+					keyIndex = i
+				}
+			}
+
+		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
 			return err
 		}
 	case reflect.Struct:

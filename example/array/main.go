@@ -8,7 +8,7 @@ import (
 type (
 	Sample struct {
 		Arr [3]NestedSample `def:"dive,dive"`
-		Numbers [3]int `def:"[1,2,3]"`
+		Numbers [3]int `def:"dive,32000"`
 	}
 
 	NestedSample struct {

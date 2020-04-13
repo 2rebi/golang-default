@@ -8,7 +8,7 @@ import (
 type (
 	Sample struct {
 		Sli []NestedSample `def:"dive(3,7),dive"`
-		Numbers []int `def:"dive(5),100"`
+		Numbers []int `def:"dive(5),-32000"`
 	}
 
 	NestedSample struct {
