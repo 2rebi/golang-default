@@ -1,6 +1,10 @@
 package def
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+	"strings"
+)
 
 type (
 	ErrorJustInit struct {
@@ -10,16 +14,24 @@ type (
 	ErrorJustInitField struct {
 		StructName string
 		FieldName string
+		FieldType string
 		TryValue string
-		Field reflect.Value
+		Cause error
+		Target reflect.Value
 	}
 )
 
 func (e *ErrorJustInit) Error() string {
-	return ""
+	builder := strings.Builder{}
+	builder.WriteString("Struct Errors\n")
+	for i := range e.Errors {
+		builder.WriteString("\t"+e.Errors[i].Error())
+	}
+	return builder.String()
 }
 
 
 func (j *ErrorJustInitField) Error() string {
-	return ""
+	return fmt.Sprintf("struct:%s,field:(%s %s),try:%s,error:%s",
+		j.StructName, j.FieldName, j.FieldType, j.TryValue, strings.ReplaceAll(j.Cause.Error(), "\n", "\n\t"))
 }

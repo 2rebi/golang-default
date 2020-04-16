@@ -66,13 +66,30 @@ func initStruct(v reflect.Value, selector structInitSelector, visitedStruct map[
 }
 
 func justInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
+	fieldErrors := make([]*ErrorJustInitField, 0)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
 		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" && ok {
 			if err := initField(v, v.Field(i), val, justInit, visitedStruct); err != nil {
-				// TODO 묶음 후 리턴
+				ft := t.Field(i)
+				typeName := ft.Type.Name()
+				if ft.Type.PkgPath() != "" {
+					typeName = ft.Type.PkgPath() + "." + typeName
+				}
+				fieldErrors = append(fieldErrors, &ErrorJustInitField{
+					StructName: t.PkgPath()+"."+t.Name(),
+					FieldName:  ft.Name,
+					FieldType:  typeName,
+					TryValue:   val,
+					Cause:      err,
+					Target:     v.Field(i),
+				})
 			}
 		}
+	}
+
+	if len(fieldErrors) > 0 {
+		return &ErrorJustInit{Errors:fieldErrors}
 	}
 
 	return nil

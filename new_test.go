@@ -235,6 +235,64 @@ func TestMustNew(t *testing.T) {
 	}
 }
 
+func TestJustNew(t *testing.T) {
+	iface, err := JustNew(sample{})
+	if assert.NoError(t, err) {
+		sample, ok := iface.(*sample)
+		if assert.True(t, ok) && assert.NotNil(t, sample) {
+			checkSample(t, sample)
+		}
+	}
+
+
+	iface, err = JustNew(nestedSample{})
+	if assert.NoError(t, err) {
+		sample, ok := iface.(*nestedSample)
+		if assert.True(t, ok) && assert.NotNil(t, sample) {
+			assert.Equal(t, sample.Name, "this is nested sample")
+			if assert.NotNil(t, sample.Psample) {
+				checkSample(t, sample.Psample)
+			}
+			checkSample(t, &sample.Sample)
+		}
+	}
+
+	iface, err = JustNew(jsonSample{})
+	if assert.NoError(t, err) {
+		sample, ok := iface.(*jsonSample)
+		if assert.True(t, ok) && assert.NotNil(t, sample) {
+			assert.Equal(t, sample.Name, "this is json struct sample")
+
+			assert.Equal(t, sample.Json.Name, "rebirth lee")
+			assert.Equal(t, sample.Json.Age, 25)
+
+			if assert.NotNil(t, sample.Pjson) {
+				assert.Equal(t, sample.Pjson.Name, "lee rebirth")
+				assert.Equal(t, sample.Pjson.Age, 52)
+			}
+		}
+	}
+
+	errorCheckList := []interface{}{
+		cycleErrorSample{},
+		boolErrorSample{},
+		intErrorSample{},
+		uintErrorSample{},
+		floatErrorSample{},
+		complexErrorSample{},
+		complexFailParseError1Sample{},
+		complexFailParseError2Sample{},
+		chanErrorSample{},
+		chanFailParseErrorSample{},
+	}
+
+	for i := range errorCheckList {
+		iface, err = JustNew(errorCheckList[i])
+		assert.NotNil(t, iface)
+		assert.Error(t, err)
+	}
+}
+
 func checkSample(t *testing.T, sample *sample) {
 	assert.True(t, sample.B)
 

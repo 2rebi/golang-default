@@ -46,7 +46,6 @@ func Test_initField(t *testing.T) {
 	//assert.NoError(t, initField(reflect.ValueOf(0), true, nil, nil))
 }
 
-
 func TestInit(t *testing.T) {
 
 	{
@@ -93,20 +92,85 @@ func TestInit(t *testing.T) {
 
 	{
 		errorCheckList := []interface{}{
-			cycleErrorSample{},
-			boolErrorSample{},
-			intErrorSample{},
-			uintErrorSample{},
-			floatErrorSample{},
-			complexErrorSample{},
-			complexFailParseError1Sample{},
-			complexFailParseError2Sample{},
-			chanErrorSample{},
-			chanFailParseErrorSample{},
+			&cycleErrorSample{},
+			&boolErrorSample{},
+			&intErrorSample{},
+			&uintErrorSample{},
+			&floatErrorSample{},
+			&complexErrorSample{},
+			&complexFailParseError1Sample{},
+			&complexFailParseError2Sample{},
+			&chanErrorSample{},
+			&chanFailParseErrorSample{},
 		}
 
 		for i := range errorCheckList {
 			err := Init(errorCheckList[i])
+			assert.Error(t, err)
+		}
+	}
+}
+
+func TestJustInit(t *testing.T) {
+
+	{
+		sample := sample{}
+		err := JustInit(&sample)
+		if assert.NoError(t, err) {
+			checkSample(t, &sample)
+		}
+	}
+
+	{
+		sample := sample{}
+		err := JustInit(sample)
+		assert.Error(t, err)
+	}
+
+	{
+		sample := nestedSample{}
+		err := JustInit(&sample)
+		if assert.NoError(t, err) {
+			assert.Equal(t, sample.Name, "this is nested sample")
+			if assert.NotNil(t, sample.Psample) {
+				checkSample(t, sample.Psample)
+			}
+			checkSample(t, &sample.Sample)
+		}
+	}
+
+	{
+		sample := jsonSample{}
+		err := JustInit(&sample)
+		if assert.NoError(t, err) {
+			assert.Equal(t, sample.Name, "this is json struct sample")
+
+			assert.Equal(t, sample.Json.Name, "rebirth lee")
+			assert.Equal(t, sample.Json.Age, 25)
+
+			if assert.NotNil(t, sample.Pjson) {
+				assert.Equal(t, sample.Pjson.Name, "lee rebirth")
+				assert.Equal(t, sample.Pjson.Age, 52)
+			}
+		}
+	}
+
+	{
+		errorCheckList := []interface{}{
+			&cycleErrorSample{},
+			&boolErrorSample{},
+			&intErrorSample{},
+			&uintErrorSample{},
+			&floatErrorSample{},
+			&complexErrorSample{},
+			&complexFailParseError1Sample{},
+			&complexFailParseError2Sample{},
+			&chanErrorSample{},
+			&chanFailParseErrorSample{},
+		}
+
+		for i := range errorCheckList {
+			err := JustInit(errorCheckList[i])
 			assert.Error(t, err)
 		}
 	}
@@ -154,16 +218,16 @@ func TestMustInit(t *testing.T) {
 
 	{
 		errorCheckList := []interface{}{
-			cycleErrorSample{},
-			boolErrorSample{},
-			intErrorSample{},
-			uintErrorSample{},
-			floatErrorSample{},
-			complexErrorSample{},
-			complexFailParseError1Sample{},
-			complexFailParseError2Sample{},
-			chanErrorSample{},
-			chanFailParseErrorSample{},
+			&cycleErrorSample{},
+			&boolErrorSample{},
+			&intErrorSample{},
+			&uintErrorSample{},
+			&floatErrorSample{},
+			&complexErrorSample{},
+			&complexFailParseError1Sample{},
+			&complexFailParseError2Sample{},
+			&chanErrorSample{},
+			&chanFailParseErrorSample{},
 		}
 
 		for i := range errorCheckList {
@@ -172,4 +236,13 @@ func TestMustInit(t *testing.T) {
 			})
 		}
 	}
+}
+
+func Test_jsonUnmarshalValue(t *testing.T) {
+	var val struct {
+		Field map[string]interface{}
+	}
+	assert.Error(t, jsonUnmarshalValue(reflect.ValueOf(val).Field(0), ""))
+	assert.Error(t, jsonUnmarshalValue(reflect.ValueOf(&val).Elem().Field(0), "}{"))
+	assert.NoError(t, jsonUnmarshalValue(reflect.ValueOf(&val).Elem().Field(0), "{}"))
 }

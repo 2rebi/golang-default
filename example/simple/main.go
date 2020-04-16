@@ -30,7 +30,11 @@ func main() {
 
 	{
 		// Simple - JustNew
-		//TODO
+		i, err := def.JustNew(Person{})
+		if err == nil {
+			p := i.(*Person)
+			fmt.Println(p)
+		}
 	}
 
 	{
@@ -53,7 +57,13 @@ func main() {
 
 	{
 		// Simple - JustInit
-		//TODO
+		p := Person{}
+		if err := def.JustInit(&p); err != nil {
+			// ...err
+			fmt.Println("JustInit, Handle Error")
+		} else {
+			fmt.Println(p)
+		}
 	}
 
 }

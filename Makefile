@@ -1,11 +1,11 @@
 test:
-	go test -v -cover -covermode=atomic ./...
+	go test -v -cover -covermode=atomic .
 
 mod-download:
 	go mod download
 
 unittest:
-	go test -short  ./...
+	go test -short  .
 
 clean:
 	if [ -f ${binary} ] ; then rm ${binary} ; fi
@@ -21,4 +21,4 @@ lint:
 		--enable=gocyclo \
 		--enable=goconst \
 		--enable=unconvert \
-		./...
+		.
