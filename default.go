@@ -330,13 +330,18 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		}
 	case reflect.Func:
 		srcFunc, ok := funcMap[defVal]
-		if !structVal.CanAddr()  {
+		if !structVal.CanAddr() {
 			return errors.New("function initialize failed, because can't access address of struct")
 		} else if !ok {
 			return fmt.Errorf("not exists key : \"%s\"", defVal)
 		}
 
-		srcVal := reflect.ValueOf(srcFunc(structVal.Addr().Interface()))
+		srcFuncVal := reflect.ValueOf(srcFunc)
+		if srcFuncVal.Type().In(0) != structVal.Addr().Type() {
+			return errors.New("function in type is wrong")
+		}
+
+		srcVal := srcFuncVal.Call([]reflect.Value{structVal.Addr()})[0].Elem()
 		srcType := srcVal.Type()
 		if srcType.Kind() != reflect.Func {
 			return errors.New("return value must be function type")

@@ -12,9 +12,8 @@ type Person struct {
 }
 
 func init() {
-	if err := def.SetFunc("person_default_do", func(self interface{}) interface{} {
-		p := self.(*Person)
-		return p.IntroducingMySelf
+	if err := def.SetFunc("person_default_do", func(self *Person) interface{} {
+		return self.IntroducingMySelf
 	}); err != nil {
 		panic(err)
 	}
