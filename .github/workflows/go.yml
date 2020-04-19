@@ -8,8 +8,8 @@ on:
 
 jobs:
 
-  build:
-    name: Build
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
 
@@ -22,11 +22,8 @@ jobs:
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
-    - name: Make Package Install
-      run: apt-get update && apt-get upgrade && apt-get install make
-
     - name: Go module download
-      run: make mod-download
+      run: go mod download
       
-    - name: Go Test
-      run: make test
+    - name: Go UnitTest
+      run: go test -short  .
