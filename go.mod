@@ -1,4 +1,4 @@
-module github.com/rebirthlee/golang-default
+module github.com/rebirthlee/def
 
 go 1.13
 
