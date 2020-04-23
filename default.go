@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -14,6 +15,11 @@ const (
 
 	valueDive = "dive"
 	valueDiveLen = len(valueDive)
+)
+
+var (
+	timeDurationType = reflect.TypeOf(time.Duration(0))
+	//timeType = reflect.TypeOf(time.Time{})
 )
 
 type structInitSelector func(v reflect.Value, visitedStruct map[reflect.Type]bool) error
@@ -114,13 +120,27 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		return nil
 	}
 
+	fieldType := fieldVal.Type()
+
+	//special type
+	switch fieldType {
+	case timeDurationType:
+		if d, err := time.ParseDuration(defVal); err != nil {
+			return err
+		} else {
+			fieldVal.Set(reflect.ValueOf(d))
+			return nil
+		}
+	}
+
+	// primitive type
 	switch k := fieldVal.Kind(); k {
 	case reflect.Invalid:
 		return nil
 	case reflect.Ptr:
 		elem := fieldVal.Elem()
 		if elem.Kind() == reflect.Invalid {
-			fieldVal.Set(reflect.New(fieldVal.Type().Elem()))
+			fieldVal.Set(reflect.New(fieldType.Elem()))
 			elem = fieldVal.Elem()
 		}
 		defer callInit(fieldVal)
@@ -165,16 +185,16 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		}
 	case reflect.Interface:
 		if defVal == "" {
-			fieldVal.Set(reflect.Zero(fieldVal.Type()))
+			fieldVal.Set(reflect.Zero(fieldType))
 		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
 			return err
 		}
 	case reflect.Map:
 		if strings.HasPrefix(defVal, valueDive+"{") && strings.HasSuffix(defVal, "}") {
-			keyType := fieldVal.Type().Key()
-			valType := fieldVal.Type().Elem()
+			keyType := fieldType.Key()
+			valType := fieldType.Elem()
 
-			fieldVal.Set(reflect.MakeMap(fieldVal.Type()))
+			fieldVal.Set(reflect.MakeMap(fieldType))
 
 			tmp := defVal[valueDiveLen+1:len(defVal)-1]
 			flag := byte(0x00)
@@ -295,7 +315,7 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 			}
 			val = val[1:]
 
-			fieldVal.Set(reflect.MakeSlice(fieldVal.Type(), ln, cp))
+			fieldVal.Set(reflect.MakeSlice(fieldType, ln, cp))
 			for i := 0; i < ln; i++ {
 				if err := initField(structVal, fieldVal.Index(i), val, selector, visitedStruct); err != nil {
 					return err
@@ -326,7 +346,7 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		} else if i, err := strconv.Atoi(defVal); err != nil {
 			return err
 		} else {
-			fieldVal.Set(reflect.MakeChan(fieldVal.Type(), i))
+			fieldVal.Set(reflect.MakeChan(fieldType, i))
 		}
 	case reflect.Func:
 		srcFunc, ok := funcMap[defVal]
@@ -341,7 +361,7 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		if srcType.Kind() != reflect.Func {
 			return errors.New("return value must be function type")
 		}
-		vType := fieldVal.Type()
+		vType := fieldType
 		if vType.NumIn() != srcType.NumIn() {
 			return errors.New("args count not equal")
 		} else if vType.NumOut() != srcType.NumOut() {
