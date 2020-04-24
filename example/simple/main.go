@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"github.com/rebirthlee/golang-default"
+	"time"
 )
 
 type Person struct {
 	Age int `def:"20"`
 	Name string `def:"rebirth lee"`
 	PocketName *string `def:"bitcoin"`
+	AliveTime time.Duration `def:"175200h"`
 }
 
 func main() {
