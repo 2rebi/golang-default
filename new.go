@@ -13,13 +13,12 @@ func New(i interface{}) (interface{}, error) {
 }
 
 func MustNew(i interface{}) interface{} {
-	ref := reflect.New(reflect.TypeOf(i))
-	defer callInit(ref)
-	if err := initStruct(ref.Elem(), maybeInit, make(map[reflect.Type]bool)); err != nil {
+	ret, err := New(i)
+	if err != nil {
 		panic(err)
 	}
 
-	return ref.Interface()
+	return ret
 }
 
 func JustNew(i interface{}) (interface{}, error) {

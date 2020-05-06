@@ -38,6 +38,7 @@ func Init(i interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer callInit(v)
 	return initStruct(v.Elem(), maybeInit, make(map[reflect.Type]bool))
 }
 
@@ -52,11 +53,11 @@ func JustInit(i interface{}) error {
 	if err != nil {
 		return err
 	}
+	defer callInit(v)
 	return initStruct(v.Elem(), justInit, make(map[reflect.Type]bool))
 }
 
 func initStruct(v reflect.Value, selector structInitSelector, visitedStruct map[reflect.Type]bool) error {
-	defer callInit(v)
 	if !v.CanSet() {
 		return nil
 	}
@@ -75,7 +76,7 @@ func justInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 	fieldErrors := make([]*ErrorJustInitField, 0)
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
-		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" && ok {
+		if val := t.Field(i).Tag.Get(tagNameDefault); val != "-" {
 			if err := initField(v, v.Field(i), val, justInit, visitedStruct); err != nil {
 				ft := t.Field(i)
 				typeName := ft.Type.Name()
@@ -104,7 +105,7 @@ func justInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 func maybeInit(v reflect.Value, visitedStruct map[reflect.Type]bool) error {
 	t := v.Type()
 	for i := 0; i < t.NumField(); i++ {
-		if val, ok := t.Field(i).Tag.Lookup(tagNameDefault); val != "-" && ok {
+		if val := t.Field(i).Tag.Get(tagNameDefault); val != "-" {
 			if err := initField(v, v.Field(i), val, maybeInit, visitedStruct); err != nil {
 				return err
 			}
@@ -133,18 +134,42 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 		}
 	}
 
-	// primitive type
-	switch k := fieldVal.Kind(); k {
-	case reflect.Invalid:
-		return nil
+	k := fieldVal.Kind()
+
+	// maybe Init function callable type
+	switch k {
 	case reflect.Ptr:
 		elem := fieldVal.Elem()
 		if elem.Kind() == reflect.Invalid {
 			fieldVal.Set(reflect.New(fieldType.Elem()))
 			elem = fieldVal.Elem()
 		}
-		defer callInit(fieldVal)
+		if elem.Kind() != reflect.Struct {
+			defer callInit(fieldVal)
+		}
 		return initField(structVal, elem, defVal, selector, visitedStruct)
+	case reflect.Struct:
+		if fieldVal.CanAddr() {
+			defer callInit(fieldVal)
+		}
+
+		if defVal == valueDive {
+			return initStruct(fieldVal, selector, visitedStruct)
+		} else if defVal != "" {
+			if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
+				return err
+			}
+		}
+	}
+
+	if defVal == "" {
+		return nil
+	}
+
+	// primitive type
+	switch k {
+	case reflect.Invalid:
+		return nil
 	case reflect.String:
 		fieldVal.SetString(defVal)
 	case reflect.Bool:
@@ -254,12 +279,6 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 				}
 			}
 
-		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
-			return err
-		}
-	case reflect.Struct:
-		if defVal == valueDive {
-			return initStruct(fieldVal, selector, visitedStruct)
 		} else if err := jsonUnmarshalValue(fieldVal, defVal); err != nil {
 			return err
 		}
