@@ -11,6 +11,9 @@ type Person struct {
 	Name string `def:"rebirth lee"`
 	PocketName *string `def:"bitcoin"`
 	AliveTime time.Duration `def:"175200h"`
+	CreateAt time.Time `def:"now"`
+	After1Hour time.Time `def:"+1h"`
+	Before1Hour time.Time `def:"-1h"`
 }
 
 func main() {

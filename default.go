@@ -19,7 +19,7 @@ const (
 
 var (
 	timeDurationType = reflect.TypeOf(time.Duration(0))
-	//timeType = reflect.TypeOf(time.Time{})
+	timeType = reflect.TypeOf(time.Time{})
 )
 
 type structInitSelector func(v reflect.Value, visitedStruct map[reflect.Type]bool) error
@@ -130,6 +130,19 @@ func initField(structVal reflect.Value, fieldVal reflect.Value, defVal string, s
 			return err
 		} else {
 			fieldVal.Set(reflect.ValueOf(d))
+			return nil
+		}
+	case timeType:
+		if defVal == "now" {
+			fieldVal.Set(reflect.ValueOf(time.Now()))
+			return nil
+		} else if strings.HasPrefix(defVal, "+") || strings.HasPrefix(defVal, "-") {
+			d, err := time.ParseDuration(defVal)
+			if err != nil {
+				return err
+			}
+
+			fieldVal.Set(reflect.ValueOf(time.Now().Add(d)))
 			return nil
 		}
 	}

@@ -3,6 +3,7 @@ package def
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 type sample struct {
@@ -60,6 +61,10 @@ type sample struct {
 	ChanInt chan int `def:"0"`
 
 	Map map[string]int `def:"{\"math\":100,\"english\":30,\"some\":999}"`
+
+	Time time.Time `def:"now"`
+	After1H time.Time `def:"+1h"`
+	Before1H time.Time `def:"-1h"`
 }
 
 type nestedSample struct {
@@ -381,4 +386,11 @@ func checkSample(t *testing.T, sample *sample) {
 		"english": 30,
 		"some": 999,
 	})
+
+	assert.NotZero(t, sample.Time)
+	assert.NotZero(t, sample.After1H)
+	assert.NotZero(t, sample.Before1H)
+
+	assert.True(t, sample.Time.After(sample.Before1H))
+	assert.True(t, sample.Time.Before(sample.After1H))
 }
