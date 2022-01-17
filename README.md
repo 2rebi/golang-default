@@ -33,6 +33,20 @@ go get github.com/rebirthlee/golang-default
 `def:"3.14,-10"`
 `def:"-3.14,3"`
 ```
+
+- `time.Duration`
+```go
+// calling time.ParseDuration
+`def:"1h"` // 1 * time.Hour
+```
+
+- `time.Time`
+```go
+`def:"now"` // time.Now()
+`def:"+1h"` // time.Now().Add(1 * time.Hour)
+`def:"-1h"` // time.Now().Add(-1 * time.Hour)
+```
+
 - Nested Struct
 ```go
 type Parent struct {
