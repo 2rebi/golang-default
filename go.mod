@@ -1,4 +1,4 @@
-module github.com/rebirthlee/golang-default
+module github.com/2rebi/golang-default
 
 go 1.16
 
